@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Riesgos - Longaví</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        
+        /* Popup Styling */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            padding: 5px;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+        }
+        .leaflet-popup-content {
+            width: 320px !important;
+            margin: 10px;
+            line-height: 1.4;
+        }
+        .popup-header {
+            border-bottom: 2px solid #eee;
+            margin-bottom: 8px;
+            padding-bottom: 5px;
+        }
+        .popup-header h3 { margin: 0; color: #2c3e50; font-size: 1.2rem; }
+        .popup-header span { font-size: 0.85rem; color: #7f8c8d; font-weight: bold; text-transform: uppercase; }
+        
+        .popup-section { margin-bottom: 10px; }
+        .popup-section-title {
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #2980b9;
+            margin-bottom: 3px;
+            border-left: 3px solid #2980b9;
+            padding-left: 5px;
+        }
+        
+        .popup-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            font-size: 0.8rem;
+        }
+        .popup-item { margin-bottom: 2px; }
+        .popup-label { font-weight: bold; color: #555; }
+        
+        .risk-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: white;
+            margin-right: 3px;
+            margin-bottom: 3px;
+        }
+        .risk-incendio { background-color: #e67e22; }
+        .risk-inundacion { background-color: #3498db; }
+        .risk-aluvion { background-color: #8e44ad; }
+        .risk-nieve { background-color: #95a5a6; }
+
+        .legend {
+            background: white;
+            padding: 10px;
+            line-height: 1.5;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            font-size: 0.85rem;
+        }
+        .legend i {
+            width: 12px;
+            height: 12px;
+            float: left;
+            margin-right: 8px;
+            margin-top: 4px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+    // 1. Datos JSON de ejemplo (Fidedignos para Longaví)
+    const riskData = [
+        {
+            id: "DM-01",
+            nombre: "Bodega Municipal Longaví",
+            tipo: "Logística Municipal",
+            nivel: "Toma Decisiones",
+            color: "#e74c3c", // Rojo
+            coords: [-35.9652, -71.6825],
+            altitud: "155 msnm",
+            distanciaCentro: "0.4 km",
+            tiempoAcceso: { auto: "2 min", moto: "1 min", lancha: "N/A" },
+            contactos: { tel: "+56 73 2411036", wsp: "+56 9 1234 5678", radio: "VHF CH-16" },
+            señalMovil: "Excelente (4G/5G)",
+            horario: "24/7 Emergencias",
+            encargado: "Juan Pérez - Jefe Emergencias",
+            misionVision: "Coordinar recursos logísticos ante catástrofes comunales.",
+            rutas: "Principal: Calle 1 Norte. Alternativa: Av. José de San Martín.",
+            riesgos: ["Incendio", "Inundación"],
+            evacuacion: "Punto de encuentro: Plaza de Armas.",
+            lideres: "Alcalde, Director de Obras."
+        },
+        {
+            id: "OP-01",
+            nombre: "Cuerpo de Bomberos Longaví - 1ª Cía",
+            tipo: "Emergencias",
+            nivel: "Operativo",
+            color: "#f39c12", // Naranja
+            coords: [-35.9658, -71.6838],
+            altitud: "158 msnm",
+            distanciaCentro: "0.2 km",
+            tiempoAcceso: { auto: "1 min", moto: "1 min", lancha: "N/A" },
+            contactos: { tel: "+56 73 2411087", wsp: "+56 9 8765 4321", radio: "HF 7.050 MHz" },
+            señalMovil: "Excelente",
+            horario: "24/7",
+            encargado: "Comandante Cuerpo de Bomberos",
+            misionVision: "Salvaguardar vidas y bienes de la comunidad longaviana.",
+            rutas: "Salida rápida por Calle 1 Sur.",
+            riesgos: ["Incendio"],
+            evacuacion: "Zona segura: Estadio Municipal.",
+            lideres: "Superintendente de Bomberos."
+        },
+        {
+            id: "TR-01",
+            nombre: "Escuela Francisco Urrutia Urrutia",
+            tipo: "Educación / Albergue",
+            nivel: "Territorial",
+            color: "#3498db", // Azul
+            coords: [-35.9600, -71.4800], // Sector La Quinta
+            altitud: "210 msnm",
+            distanciaCentro: "18.5 km",
+            tiempoAcceso: { auto: "25 min", moto: "20 min", lancha: "N/A" },
+            contactos: { tel: "+56 73 241XXXX", wsp: "No registrado", radio: "VHF Local" },
+            señalMovil: "Regular (Rural)",
+            horario: "08:00 - 18:00 (Habilitable 24h)",
+            encargado: "Director/a del Establecimiento",
+            misionVision: "Centro de educación rural y punto de apoyo territorial.",
+            rutas: "Ruta L-451 (Camino a La Quinta).",
+            riesgos: ["Aluvión", "Incendio Forestal"],
+            evacuacion: "Patio principal y multicancha techada.",
+            lideres: "Centro de Padres, Profesores."
+        },
+        {
+            id: "TR-02",
+            nombre: "Posta de Salud Rural San José",
+            tipo: "Salud",
+            nivel: "Territorial",
+            color: "#3498db",
+            coords: [-35.9820, -71.7250], // Sector San José
+            altitud: "145 msnm",
+            distanciaCentro: "5.2 km",
+            tiempoAcceso: { auto: "10 min", moto: "8 min", lancha: "N/A" },
+            contactos: { tel: "+56 73 2411339", wsp: "N/A", radio: "Red Salud Maule" },
+            señalMovil: "Buena",
+            horario: "08:00 - 17:00 (Turnos)",
+            encargado: "TENS de Turno",
+            misionVision: "Atención primaria y estabilización de pacientes.",
+            rutas: "Camino Vecinal San José.",
+            riesgos: ["Inundación"],
+            evacuacion: "Hacia zona alta del predio colindante.",
+            lideres: "Comité de Salud Local."
+        },
+        {
+            id: "TR-03",
+            nombre: "Sede JJVV Los Cristales",
+            tipo: "Comunitario",
+            nivel: "Territorial",
+            color: "#3498db",
+            coords: [-36.0200, -71.6500], // Sector Los Cristales
+            altitud: "170 msnm",
+            distanciaCentro: "12.0 km",
+            tiempoAcceso: { auto: "18 min", moto: "15 min", lancha: "N/A" },
+            contactos: { tel: "N/A", wsp: "Grupo Vecinal", radio: "N/A" },
+            señalMovil: "Inestable",
+            horario: "Bajo demanda",
+            encargado: "Presidente/a JJVV",
+            misionVision: "Centro de reunión y organización comunitaria.",
+            rutas: "Ruta L-535.",
+            riesgos: ["Incendio Forestal", "Nieve"],
+            evacuacion: "Cancha de fútbol adyacente.",
+            lideres: "Dirigentes Vecinales."
+        },
+        {
+            id: "IF-01",
+            nombre: "Centro de Acopio Estadio Municipal",
+            tipo: "Infraestructura Crítica",
+            nivel: "Infraestructura",
+            color: "#27ae60", // Verde
+            coords: [-35.9697, -71.6847],
+            altitud: "156 msnm",
+            distanciaCentro: "0.6 km",
+            tiempoAcceso: { auto: "3 min", moto: "2 min", lancha: "N/A" },
+            contactos: { tel: "+56 73 2411036", wsp: "N/A", radio: "VHF CH-16" },
+            señalMovil: "Excelente",
+            horario: "Activación en Emergencia",
+            encargado: "Administrador Estadio / Logística",
+            misionVision: "Recepción de ayuda y base de operaciones aéreas (Helipuerto).",
+            rutas: "Acceso por Calle 1 Sur.",
+            riesgos: ["Viento Fuerte"],
+            evacuacion: "Graderías y zona de estacionamientos.",
+            lideres: "Personal Municipal, Carabineros."
+        }
+    ];
+
+    // 2. Inicialización del Mapa
+    const map = L.map('map').setView([-35.9667, -71.6833], 12);
+
+    // 3. Capas Base
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    });
+
+    const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
+    });
+
+    const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)'
+    });
+
+    osm.addTo(map); // Default
+
+    const baseMaps = {
+        "Mapa de Calles": osm,
+        "Vista Satélite": satellite,
+        "Relieve / Topográfico": topo
+    };
+
+    L.control.layers(baseMaps).addTo(map);
+
+    // 4. Función para crear Popups estructurados
+    function createPopupContent(d) {
+        const risksHtml = d.riesgos.map(r => `<span class="risk-tag risk-${r.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}">${r}</span>`).join('');
+        
+        return `
+            <div class="popup-header">
+                <span>${d.nivel} | ${d.tipo}</span>
+                <h3>${d.nombre}</h3>
+            </div>
+            <div class="popup-section">
+                <div class="popup-section-title">Información Técnica</div>
+                <div class="popup-grid">
+                    <div class="popup-item"><span class="popup-label">Código:</span> ${d.id}</div>
+                    <div class="popup-item"><span class="popup-label">Altitud:</span> ${d.altitud}</div>
+                    <div class="popup-item"><span class="popup-label">Lat:</span> ${d.coords[0]}</div>
+                    <div class="popup-item"><span class="popup-label">Lon:</span> ${d.coords[1]}</div>
+                </div>
+            </div>
+            <div class="popup-section">
+                <div class="popup-section-title">Logística y Acceso</div>
+                <div class="popup-grid">
+                    <div class="popup-item"><span class="popup-label">Dist. Centro:</span> ${d.distanciaCentro}</div>
+                    <div class="popup-item"><span class="popup-label">Señal:</span> ${d.señalMovil}</div>
+                    <div class="popup-item"><span class="popup-label">T. Auto:</span> ${d.tiempoAcceso.auto}</div>
+                    <div class="popup-item"><span class="popup-label">T. Moto:</span> ${d.tiempoAcceso.moto}</div>
+                </div>
+                <div class="popup-item" style="font-size: 0.8rem;"><span class="popup-label">Rutas:</span> ${d.rutas}</div>
+            </div>
+            <div class="popup-section">
+                <div class="popup-section-title">Contactos y Gestión</div>
+                <div class="popup-grid">
+                    <div class="popup-item"><span class="popup-label">Tel:</span> ${d.contactos.tel}</div>
+                    <div class="popup-item"><span class="popup-label">Radio:</span> ${d.contactos.radio}</div>
+                </div>
+                <div class="popup-item" style="font-size: 0.8rem;"><span class="popup-label">Encargado:</span> ${d.encargado}</div>
+                <div class="popup-item" style="font-size: 0.8rem;"><span class="popup-label">Misión:</span> ${d.misionVision}</div>
+            </div>
+            <div class="popup-section">
+                <div class="popup-section-title">Riesgos y Seguridad</div>
+                <div style="margin-bottom: 5px;">${risksHtml}</div>
+                <div class="popup-item" style="font-size: 0.8rem;"><span class="popup-label">Evacuación:</span> ${d.evacuacion}</div>
+                <div class="popup-item" style="font-size: 0.8rem;"><span class="popup-label">Entidades Clave:</span> ${d.lideres}</div>
+            </div>
+        `;
+    }
+
+    // 5. Cargar Pines al Mapa
+    riskData.forEach(point => {
+        // Crear marcador personalizado (Círculo coloreado para simplicidad y rendimiento)
+        const marker = L.circleMarker(point.coords, {
+            radius: 10,
+            fillColor: point.color,
+            color: "#fff",
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.9
+        }).addTo(map);
+
+        marker.bindPopup(createPopupContent(point));
+    });
+
+    // 6. Leyenda
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function (map) {
+        const div = L.DomUtil.create('div', 'legend');
+        const levels = [
+            { name: "Toma Decisiones", color: "#e74c3c" },
+            { name: "Operativo", color: "#f39c12" },
+            { name: "Territorial", color: "#3498db" },
+            { name: "Infraestructura", color: "#27ae60" }
+        ];
+        div.innerHTML = '<strong>Niveles Jerárquicos</strong><br>';
+        levels.forEach(l => {
+            div.innerHTML += `<i style="background: ${l.color}"></i> ${l.name}<br>`;
+        });
+        return div;
+    };
+    legend.addTo(map);
+
+</script>
+
+</body>
+</html>
